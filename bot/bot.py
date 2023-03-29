@@ -40,12 +40,7 @@ logger = logging.getLogger(__name__)
 user_semaphores = {}
 
 HELP_MESSAGE = """Commands:
-⚪ /retry – Regenerate last bot answer
-⚪ /new – Start new dialog
 ⚪ /mode – Select chat mode
-⚪ /settings – Show settings
-⚪ /balance – Show balance
-⚪ /help – Show help
 """
 
 
@@ -97,10 +92,9 @@ async def start_handle(update: Update, context: CallbackContext):
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
     db.start_new_dialog(user_id)
 
-    reply_text = "Hi! I'm <b>ChatGPT</b> bot implemented with GPT-3.5 OpenAI API 🤖\n\n"
+    reply_text = "Choose mode to start with 🤖\n"
     reply_text += HELP_MESSAGE
-
-    reply_text += "\nAnd now... ask me anything!"
+    reply_text += "\nyou can use the menu to switch between modes or start new dialogs!!"
 
     await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML)
 
@@ -450,9 +444,9 @@ async def post_init(application: Application):
         BotCommand("/new", "Start new dialog"),
         BotCommand("/mode", "Select chat mode"),
         BotCommand("/retry", "Re-generate response for previous query"),
-        BotCommand("/balance", "Show balance"),
-        BotCommand("/settings", "Show settings"),
-        BotCommand("/help", "Show help message"),
+        # BotCommand("/balance", "Show balance"),
+        # BotCommand("/settings", "Show settings"),
+        # BotCommand("/help", "Show help message"),
     ])
 
 def run_bot() -> None:
