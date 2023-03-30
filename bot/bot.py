@@ -41,6 +41,8 @@ user_semaphores = {}
 
 HELP_MESSAGE = """Commands:
 ⚪ /mode – Select chat mode
+⚪ /retry – Regenerate last bot answer
+⚪ /new – Start new dialog
 """
 
 
@@ -92,9 +94,10 @@ async def start_handle(update: Update, context: CallbackContext):
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
     db.start_new_dialog(user_id)
 
-    reply_text = "Choose mode to start with 🤖\n"
+    reply_text = "Hey there, I'm Shaul.ai. advanced AI bot that can do almost everything you need.  🤖\n\n"
     reply_text += HELP_MESSAGE
-    reply_text += "\nyou can use the menu to switch between modes or start new dialogs!!"
+
+    reply_text += "\nAnd now... ask me anything!"
 
     await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML)
 
@@ -429,15 +432,17 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
             f"<pre>{html.escape(tb_string)}</pre>"
         )
 
-        # split text into multiple messages due to 4096 character limit
-        for message_chunk in split_text_into_chunks(message, 4096):
-            try:
-                await context.bot.send_message(update.effective_chat.id, message_chunk, parse_mode=ParseMode.HTML)
-            except telegram.error.BadRequest:
-                # answer has invalid characters, so we send it without parse_mode
-                await context.bot.send_message(update.effective_chat.id, message_chunk)
+        if update and update.effective_chat:
+            # split text into multiple messages due to 4096 character limit
+            for message_chunk in split_text_into_chunks(message, 4096):
+                try:
+                    await context.bot.send_message(update.effective_chat.id, message_chunk, parse_mode=ParseMode.HTML)
+                except telegram.error.BadRequest:
+                    # answer has invalid characters, so we send it without parse_mode
+                    await context.bot.send_message(update.effective_chat.id, message_chunk)
     except:
-        await context.bot.send_message(update.effective_chat.id, "Some error in error handler")
+        if update and update.effective_chat:
+            await context.bot.send_message(update.effective_chat.id, "Some error in error handler")
 
 async def post_init(application: Application):
     await application.bot.set_my_commands([
