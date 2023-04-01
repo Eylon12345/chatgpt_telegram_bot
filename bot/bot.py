@@ -5,9 +5,11 @@ import traceback
 import html
 import json
 import tempfile
-import pydub
+#import pydub
 from pathlib import Path
 from datetime import datetime
+#from elevenlabslib import *
+
 
 import replicate
 
@@ -142,7 +144,29 @@ async def retry_handle(update: Update, context: CallbackContext):
     await message_handle(update, context, message=last_dialog_message["user"], use_new_dialog_timeout=False)
 
 
-async def message_handle(update: Update, context: CallbackContext, message=None, use_new_dialog_timeout=True):
+
+# async def send_audio_response(update: Update, context: CallbackContext, text: str, api_key: str):
+#     user = ElevenLabsUser(api_key)
+#     voice = user.get_voices_by_name("Rachel")[0]
+#
+#     # Generate audio for the bot's response
+#     response_audio_path = voice.generate_audio(text)
+#
+#     # Send the audio file as a voice message to the user
+#     with open(response_audio_path, "rb") as audio_file:
+#         await context.bot.send_voice(chat_id=update.message.chat_id, voice=audio_file)
+#
+#     # Clean up the generated audio file from history
+#     for history_item in user.get_history_items():
+#         if history_item.text == text:
+#             history_item.delete()
+#             break
+
+
+
+
+
+async def message_handle(update: Update, context: CallbackContext, message=None, use_new_dialog_timeout=True, is_voice_input=False):
     # check if message is edited
     if update.edited_message is not None:
         await edited_message_handle(update, context)
@@ -216,17 +240,75 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
                 if abs(len(answer) - len(prev_answer)) < 100 and status != "finished":
                     continue
 
-                try:
-                    await context.bot.edit_message_text(answer, chat_id=placeholder_message.chat_id, message_id=placeholder_message.message_id, parse_mode=parse_mode)
-                except telegram.error.BadRequest as e:
-                    if str(e).startswith("Message is not modified"):
-                        continue
-                    else:
-                        await context.bot.edit_message_text(answer, chat_id=placeholder_message.chat_id, message_id=placeholder_message.message_id)
+                # Check whether to send a voice message
+                send_voice_message = is_voice_input or chat_mode == "voice_mode"
+
+                # if send_voice_message:
+                #     # Generate voice message using ElevenLabs API
+                #     import tempfile
+                #     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_audio_file:
+                #         audio_file_path = tmp_audio_file.name
+                #         user = ElevenLabsUser("API_KEY")
+                #         voice = user.get_voices_by_name("Rachel")[0]
+                #         from playsound import playsound
+                #
+                #         audio_text = "Test."
+                #         audio_file_path = None
+                #
+                #         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_audio_file:
+                #             audio_file_path = tmp_audio_file.name
+                #             voice.generate_audio(audio_text, output_format="mp3", output_path=audio_file_path)
+                #
+                #         playsound(audio_file_path)
+                #
+                #         # Send the response as an audio message
+                #         with open(tmp_audio_file.name, 'rb') as audio_file:
+                #             await context.bot.send_voice(chat_id=update.message.chat_id, voice=audio_file)
+                #
+                #         # Delete temporary file
+                #         os.unlink(tmp_audio_file.name)
+
+                await context.bot.edit_message_text(answer, chat_id=placeholder_message.chat_id,
+                                                        message_id=placeholder_message.message_id,
+                                                        parse_mode=parse_mode)
 
                 await asyncio.sleep(0.01)  # wait a bit to avoid flooding
 
                 prev_answer = answer
+
+
+
+
+            # async for gen_item in gen:
+            #     status, answer, (n_input_tokens, n_output_tokens), n_first_dialog_messages_removed = gen_item
+            #
+            #     answer = answer[:4096]  # telegram message limit
+            #
+            #     # update only when 100 new symbols are ready
+            #     if abs(len(answer) - len(prev_answer)) < 100 and status != "finished":
+            #         continue
+            #
+            #     try:
+            #         chat_mode = db.get_user_attribute(user_id, "current_chat_mode")
+            #
+            #         if is_voice_input or chat_mode == "voice_mode":
+            #             # Send the response as an audio message
+            #             await send_audio_response(update, context, answer, "9d3d5c933075516c825171a7a1c899f6")
+            #         else:
+            #             # Send the response as a text message
+            #             await context.bot.edit_message_text(answer, chat_id=placeholder_message.chat_id,
+            #                                                 message_id=placeholder_message.message_id,
+            #                                                 parse_mode=parse_mode)
+            #     except telegram.error.BadRequest as e:
+            #         if str(e).startswith("Message is not modified"):
+            #             continue
+            #         else:
+            #             await context.bot.edit_message_text(answer, chat_id=placeholder_message.chat_id,
+            #                                                 message_id=placeholder_message.message_id)
+            #
+            #     await asyncio.sleep(0.01)  # wait a bit to avoid flooding
+            #
+            #     prev_answer = answer
 
             # update user data
             new_dialog_message = {"user": _message, "bot": answer, "date": datetime.now()}
@@ -285,6 +367,8 @@ async def is_previous_message_not_answered_yet(update: Update, context: Callback
         return False
 
 
+import subprocess
+
 async def voice_message_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     if await is_previous_message_not_answered_yet(update, context): return
@@ -301,9 +385,9 @@ async def voice_message_handle(update: Update, context: CallbackContext):
         voice_file = await context.bot.get_file(voice.file_id)
         await voice_file.download_to_drive(voice_ogg_path)
 
-        # convert to mp3
+        # convert to mp3 using FFmpeg
         voice_mp3_path = tmp_dir / "voice.mp3"
-        pydub.AudioSegment.from_file(voice_ogg_path).export(voice_mp3_path, format="mp3")
+        subprocess.run(['ffmpeg', '-i', str(voice_ogg_path), str(voice_mp3_path)])
 
         # transcribe
         with open(voice_mp3_path, "rb") as f:
@@ -315,7 +399,8 @@ async def voice_message_handle(update: Update, context: CallbackContext):
     # update n_transcribed_seconds
     db.set_user_attribute(user_id, "n_transcribed_seconds", voice.duration + db.get_user_attribute(user_id, "n_transcribed_seconds"))
 
-    await message_handle(update, context, message=transcribed_text)
+    await message_handle(update, context, message=transcribed_text, is_voice_input=True)
+
 
 
 async def new_dialog_handle(update: Update, context: CallbackContext):
