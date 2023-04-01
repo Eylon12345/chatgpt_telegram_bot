@@ -9,6 +9,8 @@ import pydub
 from pathlib import Path
 from datetime import datetime
 
+import replicate
+
 import telegram
 from telegram import (
     Update,
@@ -46,6 +48,17 @@ HELP_MESSAGE = """Commands:
 ⚪ /retry – Regenerate last bot answer
 ⚪ /new – Start new dialog
 """
+
+# import replicate
+#
+# model_name = "stability-ai/stable-diffusion:db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf"
+# input_data = {"prompt": "a vision of paradise. unreal engine"}
+#
+# output = replicate.run(model_name, input=input_data)
+# print(output)
+
+
+
 
 
 def split_text_into_chunks(text, chunk_size):
@@ -161,6 +174,16 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             await update.message.chat.send_action(action="typing")
 
             _message = message or update.message.text
+            if chat_mode == "your_specific_chat_mode":
+                client = replicate.Client(api_token="9cdf76ae777aea466a5be0e0978709222dd95433")
+                output = client.run(
+                    "prompthero/openjourney:9936c2001faa2194a261c01381f90e65261879985476014a0a37a334593a05eb",
+                    input={"prompt": _message}
+                )
+
+                # Send each image URL as a photo message
+                for image_url in output:  # Assuming 'output' is an array of image URLs
+                    await context.bot.send_photo(chat_id=update.message.chat_id, photo=image_url)
 
             dialog_messages = db.get_dialog_messages(user_id, dialog_id=None)
             parse_mode = {
